@@ -1,27 +1,52 @@
 #!/bin/sh
 
-mkdir -p $HOME/.pachub
-LOCKFILE=$HOME/.pachub/packages.lock
-LISTFILE=$HOME/.pachub/packages.list
+DIR="$HOME/.pachub"
+PACHUB_CONF="$DIR/pachub.conf"
+LOCKFILE="$DIR/.lock"
+REPODIR="$DIR/repo"
+if [ -f "$PACHUB_CONF" ]; then
+    source "$PACHUB_CONF" 2> /dev/null || exit 1
+fi
+mkdir -p "$DIR"
+mkdir -p "$REPODIR"
 
-makehub() {
-    name=$(echo "$1" |cut -d "/" -f 2)
-    tmp="/tmp/pachub-$USER"
-    dir="$tmp/$name"
-    if [ -d "$dir" ]; then
-        pushd "$dir" > /dev/null
-        git pull
-        res=$?
-        popd > /dev/null
+_list() {
+    for dir in "$REPODIR/"*/*; do
+        if [ "$dir" != "$REPODIR/*/*" -a -d "$dir" ]; then
+            dirname "$dir" | xargs basename | tr '\n' '/'; basename "$dir" || return 1
+        fi
+    done
+}
+
+_update() {
+    for dir in "$REPODIR/"*/*; do
+        if [ "$dir" != "$REPODIR/*/*" -a -d "$dir" ]; then
+            _install "$dir" || return 1
+        fi
+    done
+}
+
+_clone() {
+    test -d "$2" || git clone "https://github.com/$1.git" "$2" || return 1
+}
+
+_install() {
+    git -C "$1" remote update || return 1
+    if [ "$2" = "force" ]; then
+        git -C "$1" pull
     else
-        git clone "https://github.com/$1.git" "$dir"
-        res=$?
+        git -C "$1" pull | grep up-to-date && return 0
     fi
-    if [ $res -eq 0 ]; then
-        yaourt --noconfirm -P "$dir"
-        res=$?
-    fi
-    return $res
+    yaourt --noconfirm -P "$1" -i
+    return $?
+}
+
+_remove() {
+    pushd "$1" > /dev/null
+    pkgname=$(makepkg --printsrcinfo | grep -oP '(?<=pkgname = ).*')
+    popd > /dev/null
+    yaourt --noconfirm -R "$pkgname" && rm -Rf "$1"
+    return $?
 }
 
 if [ -f "$LOCKFILE" ]; then
@@ -29,38 +54,29 @@ if [ -f "$LOCKFILE" ]; then
     exit 1
 fi
 
-test -f "$LISTFILE" || touch "$LISTFILE"
 touch "$LOCKFILE"
 trap "rm -f '$LOCKFILE'" INT
 
-if [ "$1" = "install" ]; then
-    makehub "$2"
+if [ \( "$1" = "install" -o "$1" = "remove" \) -a -n "$2" ]; then
+    dir="$REPODIR/$2"
+    _clone "$2" "$dir" || exit 1
+fi
+if [ "$1" = "install" -a -n "$2" ]; then
+    _install "$dir" force
     res=$?
-    test $res -eq 0 && echo "$2" > "$LISTFILE"
-elif [ "$1" = "remove" ]; then
-    if grep "^los$" "$LISTFILE"; then
-        name=$(echo "$1" |cut -d "/" -f 2)
-        yaourt --noconfirm -R "$name"
-        res=$?
-        grep -v "^los$" "$LISTFILE" > "$LISTFILE.new"
-        cp -f "$LISTFILE.new" "$LISTFILE"
-        rm -f "$LOCKFILE" "$LISTFILE.new"
-    else
-        echo "Not found."
-        res=1
-    fi
+elif [ "$1" = "remove" -a -n "$2" ]; then
+    _remove "$dir"
+    res=$?
 elif [ "$1" = "update" ]; then
-    cat "$LISTFILE" | while read line; do
-        makehub "$2"
-        res=$?
-        test $res -eq 0 || break
-    done
+    _update
+    res=$?
 elif [ "$1" = "list" ]; then
     echo "Package list:"
-    cat "$LISTFILE"
+    _list
+    res=$?
 else
-    echo "Usage: $0 (install|remove) <user>/<repo>"
-    echo "       $0 (list|update)"
+    echo "Usage: $(basename $0) (install|remove) <user>/<repo>"
+    echo "       $(basename $0) (list|update)"
 fi
 
 rm -f "$LOCKFILE"
