@@ -56,29 +56,31 @@ fi
 
 touch "$LOCKFILE"
 trap "rm -f '$LOCKFILE'" INT
+res=0
 
 if [ \( "$1" = "install" -o "$1" = "remove" \) -a -n "$2" ]; then
     dir="$REPODIR/$2"
-    _clone "$2" "$dir" || exit 1
+    _clone "$2" "$dir"
+    res=$?
 fi
-if [ "$1" = "install" -a -n "$2" ]; then
-    _install "$dir" force
-    res=$?
-elif [ "$1" = "remove" -a -n "$2" ]; then
-    _remove "$dir"
-    res=$?
-elif [ "$1" = "update" ]; then
-    _update
-    res=$?
-elif [ "$1" = "list" ]; then
-    echo "Package list:"
-    _list
-    res=$?
-else
-    echo "Usage: $(basename $0) (install|remove) <user>/<repo>"
-    echo "       $(basename $0) (list|update)"
+if [ $res -eq 0 ]; then
+    if [ "$1" = "install" -a -n "$2" ]; then
+        _install "$dir" force
+        res=$?
+    elif [ "$1" = "remove" -a -n "$2" ]; then
+        _remove "$dir"
+        res=$?
+    elif [ "$1" = "update" ]; then
+        _update
+        res=$?
+    elif [ "$1" = "list" ]; then
+        echo "Package list:"
+        _list
+        res=$?
+    else
+        echo "Usage: $(basename $0) (install|remove) <user>/<repo>"
+        echo "       $(basename $0) (list|update)"
+    fi
 fi
-
 rm -f "$LOCKFILE"
-
 exit $res
