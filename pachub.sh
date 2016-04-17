@@ -81,14 +81,14 @@ if [ $res -eq 0 ]; then
     elif [ "$1" = "remove" -a -n "$2" ]; then
         _remove "$dir"
         res=$?
+    elif [ "$1" = "info" -a -n "$2" ]; then
+        _info "$dir"
+        res=$?
     elif [ "$1" = "update" ]; then
         _update
         res=$?
     elif [ "$1" = "list" ]; then
         _list
-        res=$?
-    elif [ "$1" = "info" ]; then
-        _info "$dir"
         res=$?
     else
         echo "Usage: $(basename $0) (install|remove|info) <user>/<repo>"
