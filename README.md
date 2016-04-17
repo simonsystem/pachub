@@ -12,5 +12,5 @@ A yaourt wrapper to install PKDBUILDs from github.com.
 
 ## Usage
 
-    pachub (install|remove) <user>/<repo>
+    pachub (install|remove|info) <user>/<repo>
     pachub (list|update)
