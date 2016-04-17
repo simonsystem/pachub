@@ -107,7 +107,7 @@ if [ $res -eq 0 ]; then
         _list
         res=$?
     else
-        echo "Usage: $(basename $0) (install|remove|info) <user>/<repo>"
+        echo "Usage: $(basename $0) (install|remove|touch|info) <user>/<repo>"
         echo "       $(basename $0) (list|update)"
     fi
 fi
