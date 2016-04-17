@@ -11,7 +11,14 @@ mkdir -p "$DIR"
 mkdir -p "$REPODIR"
 
 _clone() {
-    test -d "$2" || git clone "https://github.com/$1.git" "$2" || return 1
+    user=$(echo "$1" | cut -d/ -f1)
+    repo=$(echo "$1" | cut -d/ -f2)
+    if [ "$user" = "aur" ]; then
+        url="https://aur.archlinux.org/$repo.git"
+    else
+        url="https://github.com/$user/$repo.git"
+    fi
+    test -d "$2" || git clone "$url" "$2" || return 1
 }
 
 _install() {
@@ -37,7 +44,12 @@ _remove() {
     pushd "$1" > /dev/null
     pkgname=$(makepkg --printsrcinfo | grep -oP '(?<=pkgname = ).*')
     popd > /dev/null
-    yaourt --noconfirm -R "$pkgname" && rm -Rf "$1"
+    yaourt --noconfirm -R "$pkgname" && _clean "$1"
+    return $?
+}
+
+_clean() {
+    rm -Rf "$1"
     return $?
 }
 
@@ -66,7 +78,7 @@ touch "$LOCKFILE"
 trap "rm -f '$LOCKFILE'" INT
 res=0
 
-if [ \( "$1" = "install" -o "$1" = "update" -o "$1" = "remove" -o "$1" = "info" \) -a -n "$2" ]; then
+if [ \( "$1" = "install" -o "$1" = "update" -o "$1" = "remove" -o "$1" = "touch" -o "$1" = "info" \) -a -n "$2" ]; then
     dir="$REPODIR/$2"
     _clone "$2" "$dir"
     res=$?
@@ -80,6 +92,10 @@ if [ $res -eq 0 ]; then
         res=$?
     elif [ "$1" = "remove" -a -n "$2" ]; then
         _remove "$dir"
+        res=$?
+    elif [ "$1" = "touch" -a -n "$2" ]; then
+        _install "$dir" force && \
+        _clean "$dir"
         res=$?
     elif [ "$1" = "info" -a -n "$2" ]; then
         _info "$dir"
