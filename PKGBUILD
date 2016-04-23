@@ -1,7 +1,7 @@
 # Maintainer: Simon Schroeter <simon.schroeter@gmail.com>
 
 pkgname=pachub
-pkgver=0.0.1
+pkgver=eccf854
 pkgrel=1
 pkgdesc="A yaourt wrapper to install PKDBUILDs from github.com"
 arch=('i686' 'x86_64')

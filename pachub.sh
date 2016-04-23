@@ -4,6 +4,12 @@ DIR="$HOME/.pachub"
 PACHUB_CONF="$DIR/pachub.conf"
 LOCKFILE="$DIR/.lock"
 REPODIR="$DIR/repo"
+BUILDUSER="simon"
+TMPDIR="/tmp/pachub-$USER"
+GIT=git
+MAKEPKG=makepkg
+PACMAN=pacman
+
 if [ -f "$PACHUB_CONF" ]; then
     source "$PACHUB_CONF" 2> /dev/null || exit 1
 fi
@@ -18,17 +24,24 @@ _clone() {
     else
         url="https://github.com/$user/$repo.git"
     fi
-    test -d "$2" || git clone "$url" "$2" || return 1
+    test -d "$2" || $GIT clone "$url" "$2" || return 1
 }
 
 _install() {
-    git -C "$1" remote update || return 1
+    $GIT -C "$1" remote update || return 1
     if [ "$2" = "force" ]; then
-        git -C "$1" pull
+        $GIT -C "$1" pull
     else
-        git -C "$1" pull | grep up-to-date && return 0
+        $GIT -C "$1" pull | grep up-to-date && return 0
     fi
-    yaourt --noconfirm -P "$1" -i
+
+    tdir="$TMPDIR/$(basename "$1")"
+
+    rm -rf "$tdir" && cp -r "$1" "$tdir" && \
+    pushd "$tdir" > /dev/null
+    sudo -u "$BUILDUSER" $MAKEPKG -si
+    popd > /dev/null
+
     return $?
 }
 
@@ -42,9 +55,9 @@ _update() {
 
 _remove() {
     pushd "$1" > /dev/null
-    pkgname=$(makepkg --printsrcinfo | grep -oP '(?<=pkgname = ).*')
+    pkgname=$($MAKEPKG --printsrcinfo | grep -oP '(?<=pkgname = ).*')
     popd > /dev/null
-    yaourt --noconfirm -R "$pkgname" && _clean "$1"
+    $PACMAN --noconfirm -R "$pkgname" && _clean "$1"
     return $?
 }
 
@@ -55,9 +68,9 @@ _clean() {
 
 _info() {
     pushd "$1" > /dev/null
-    pkgname=$(makepkg --printsrcinfo | grep -oP '(?<=pkgname = ).*')
+    pkgname=$($MAKEPKG --printsrcinfo | grep -oP '(?<=pkgname = ).*')
     popd > /dev/null
-    yaourt -Qi "$pkgname"
+    $PACMAN -Qi "$pkgname"
     return $?
 }
 
