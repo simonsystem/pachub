@@ -5,10 +5,11 @@ PACHUB_CONF="$DIR/pachub.conf"
 LOCKFILE="$DIR/.lock"
 REPODIR="$DIR/repo"
 BUILDUSER="simon"
-TMPDIR="/tmp/pachub-$USER"
+TMPDIR="/tmp/pachub-$BUILDUSER"
 GIT=git
 MAKEPKG=makepkg
 PACMAN=pacman
+SUDO=sudo
 
 if [ -f "$PACHUB_CONF" ]; then
     source "$PACHUB_CONF" 2> /dev/null || exit 1
@@ -24,6 +25,7 @@ _clone() {
     else
         url="https://github.com/$user/$repo.git"
     fi
+    echo "Cloning $url"
     test -d "$2" || $GIT clone "$url" "$2" || return 1
 }
 
@@ -36,12 +38,12 @@ _install() {
     fi
 
     tdir="$TMPDIR/$(basename "$1")"
-
-    rm -rf "$tdir" && cp -r "$1" "$tdir" && \
-    pushd "$tdir" > /dev/null
-    sudo -u "$BUILDUSER" $MAKEPKG -si
-    popd > /dev/null
-
+    
+    $SUDO -u "$BUILDUSER" sh -c "
+        mkdir -p '$TMPDIR';
+        rm -rf '$tdir';
+        cp -r '$1' '$tdir' &&
+        cd '$tdir' && $MAKEPKG -si"
     return $?
 }
 
