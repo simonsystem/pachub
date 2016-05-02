@@ -75,8 +75,8 @@ _install() {
         source '$tdir/PKGBUILD' &&
         echo \$pkgname > '$tdir/.pkgname' &&
         echo \$pkgver > '$tdir/.pkgver'"
-    pkgname="$(cat "$2/.pkgname")"
-    pkgver="$(cat "$2/.pkgver")"
+    pkgname="$(cat "$tdir/.pkgname")"
+    pkgver="$(cat "$tdir/.pkgver")"
     echo $pkgname > '$2/.pkgname'
     echo $pkgver > '$2/.pkgver'
     $PACMAN --noconfirm -U "$pkgname-$pkgver.pkg.tar.xz" || true
