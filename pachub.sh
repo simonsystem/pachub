@@ -1,130 +1,173 @@
 #!/bin/sh
 
-DIR="$HOME/.pachub"
-PACHUB_CONF="$DIR/pachub.conf"
-LOCKFILE="$DIR/.lock"
-REPODIR="$DIR/repo"
-BUILDUSER="simon"
-TMPDIR="/tmp/pachub-$BUILDUSER"
+set -e
+
 GIT=git
 MAKEPKG=makepkg
 PACMAN=pacman
 SUDO=sudo
+test -n "$CONFFILE" || CONFFILE="/usr/local/etc/pachub.conf"
+test ! -f "$CONFFILE" || source "$CONFFILE" 2> /dev/null
+test -n "$LOCKFILE" || LOCKFILE="/var/local/pachub/lock"
+test -n "$REPODIR" || REPODIR="/var/local/pachub/repo"
+test -n "$BUILDUSER" || BUILDUSER="pachub"
+test -n "$TMPBASE" || TMPBASE="/tmp"
+umask 0022
 
-if [ -f "$PACHUB_CONF" ]; then
-    source "$PACHUB_CONF" 2> /dev/null || exit 1
-fi
-mkdir -p "$DIR"
-mkdir -p "$REPODIR"
+# pachub (install|touch) <uri> [pkgbuild <path>]
+# pachub list
+# pachub update
+# pachub info <uri>
+#
+# uri:
+#   aur:<pkgname>
+#   github:<user>/<repo>
+#   file:///path/to/pkg
+#   http://example.com/repo/path
+#   user@git.example.com:~/repo.git
 
 _clone() {
-    user=$(echo "$1" | cut -d/ -f1)
-    repo=$(echo "$1" | cut -d/ -f2)
-    if [ "$user" = "aur" ]; then
-        url="https://aur.archlinux.org/$repo.git"
+    test "$3" != omit || test ! -d "$2" || return 0
+    test ! -d "$2" || die "Folder '$2' already exists."
+    rtype=$(echo "$1" | cut -d: -f1)
+    rpath=$(echo "$1" | cut -d: -f2)
+    if [ "$rtype" = "aur" ]; then
+        url="https://aur.archlinux.org/$rpath.git"
+    elif [ "$rtype" = "github" ]; then
+        url="https://github.com/$rpath.git"
     else
-        url="https://github.com/$user/$repo.git"
+        url="$rtype:$rpath"
     fi
-    echo "Cloning $url"
-    test -d "$2" || $GIT clone "$url" "$2" || return 1
-}
-
-_install() {
-    $GIT -C "$1" remote update || return 1
-    if [ "$2" = "force" ]; then
-        $GIT -C "$1" pull
-    else
-        $GIT -C "$1" pull | grep up-to-date && return 0
-    fi
-
-    tdir="$TMPDIR/$(basename "$1")"
-    
-    $SUDO -u "$BUILDUSER" sh -c "
-        mkdir -p '$TMPDIR';
-        rm -rf '$tdir';
-        cp -r '$1' '$tdir' &&
-        cd '$tdir' && $MAKEPKG -si"
+    mkdir -p "$(dirname "$2")" || true
+    rm -rf "$2"
+    $GIT clone "$url" "$2"
     return $?
 }
 
+_die() {
+    echo "$1"
+    exit 1
+}
+
+_check() {
+    LOCAL=$($GIT -C "$2" rev-parse @)
+    REMOTE=$($GIT -C "$2" rev-parse @{u})
+    BASE=$($GIT -C "$2" merge-base @ @{u})
+
+    test $LOCAL != $REMOTE || return 1
+    test $LOCAL != $BASE || return 0
+    test $REMOTE != $BASE || echo "git changes found"
+    _die "git is diverged"
+}
+
+_install() {
+    test -d "$2" || _clone "$1" "$2"
+    $GIT -C "$2" remote update
+    test "$3" = force || _check "$1" || return 0
+    $GIT -C "$2" pull --rebase
+    tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
+    
+    $SUDO -u "$BUILDUSER" sh -c "
+        mkdir -p '$(dirname "$tdir")';
+        rm -rf '$tdir';
+        cp -r '$2' '$tdir' &&
+        cd '$tdir' && $MAKEPKG -s --noconfirm &&
+        source '$tdir/PKGBUILD' &&
+        echo \$pkgname > $tdir/.pkgname &&
+        echo \$pkgver > $tdir/.pkgver"
+    pkgname="$(cat "$dest/.pkgname")"
+    pkgver="$(cat "$dest/.pkgver")"
+    $PACMAN --noconfirm -U "$pkgname-$pkgver.pkg.tar.xz" || true
+}
+
+_replace() {
+    cp -r "$3"/* "$2"
+    $GIT -C "$2" add "*"
+    $GIT -C "$2" commit -m "$(date)" || true
+}
+
 _update() {
-    for dir in "$REPODIR/"*/*; do
-        if [ "$dir" != "$REPODIR/*/*" -a -d "$dir" ]; then
-            _install "$dir" || return 1
+    for dir in "$REPODIR/"*; do
+        if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
+            _install "$(basename "$dir")"
         fi
     done
 }
 
 _remove() {
-    pushd "$1" > /dev/null
-    pkgname=$($MAKEPKG --printsrcinfo | grep -oP '(?<=pkgname = ).*')
-    popd > /dev/null
-    $PACMAN --noconfirm -R "$pkgname" && _clean "$1"
+    test -d "$2" || _die "Not found."
+    pkgname="$(cat "$dest/.pkgname")"
+    $PACMAN --noconfirm -R "$pkgname" || true
+    _clean "$1"
     return $?
 }
 
 _clean() {
-    rm -Rf "$1"
+    dest="$REPODIR/$(echo "$1" | tr '/' '_')"
+    rm -Rf "$dest"
     return $?
 }
 
 _info() {
-    pushd "$1" > /dev/null
-    pkgname=$($MAKEPKG --printsrcinfo | grep -oP '(?<=pkgname = ).*')
-    popd > /dev/null
-    $PACMAN -Qi "$pkgname"
+    test -f "$2/PKGBUILD" || _die "Not found."
+    ( cat "$2/PKGBUILD" && echo 'echo $pkgname' ) | sh | xargs -r $PACMAN -Qi
     return $?
 }
 
 _list() {
-    for dir in "$REPODIR/"*/*; do
-        if [ "$dir" != "$REPODIR/*/*" -a -d "$dir" ]; then
-            dirname "$dir" | xargs basename | tr '\n' '/'; basename "$dir" || return 1
+    for dir in "$REPODIR/"*; do
+        if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
+            basename "$dir"
         fi
     done
 }
 
-if [ -f "$LOCKFILE" ]; then
-    echo "Lockfile exists at $LOCKFILE."
-    exit 1
-fi
-
-touch "$LOCKFILE"
-trap "rm -f '$LOCKFILE'" INT
-res=0
-
-if [ \( "$1" = "install" -o "$1" = "update" -o "$1" = "remove" -o "$1" = "touch" -o "$1" = "info" \) -a -n "$2" ]; then
-    dir="$REPODIR/$2"
-    _clone "$2" "$dir"
-    res=$?
-fi
-if [ $res -eq 0 ]; then
-    if [ "$1" = "install" -a -n "$2" ]; then
-        _install "$dir" force
-        res=$?
-    elif [ "$1" = "update" -a -n "$2" ]; then
-        _install "$dir"
-        res=$?
-    elif [ "$1" = "remove" -a -n "$2" ]; then
-        _remove "$dir"
-        res=$?
-    elif [ "$1" = "touch" -a -n "$2" ]; then
-        _install "$dir" force && \
-        _clean "$dir"
-        res=$?
-    elif [ "$1" = "info" -a -n "$2" ]; then
-        _info "$dir"
-        res=$?
-    elif [ "$1" = "update" ]; then
-        _update
-        res=$?
-    elif [ "$1" = "list" ]; then
-        _list
-        res=$?
-    else
-        echo "Usage: $(basename $0) (install|remove|touch|info) <user>/<repo>"
-        echo "       $(basename $0) (list|update)"
+_lock() {
+    test ! -f "$LOCKFILE" || die "Lockfile exists at $LOCKFILE."
+    mkdir -p "$(dirname "$LOCKFILE")" || true
+    touch "$LOCKFILE"
+    trap _unlock EXIT
+}
+_unlock(){
+    rm -f "$LOCKFILE"
+}
+if [ "$1" = "install" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _lock
+    _clone "$2" "$dest" omit
+    if [ "$3" = "pkgbuild" -a -n "$4" ]; then
+        _replace "$2" "$dest" "$4"
     fi
+    _install "$2" "$dest" force 
+    _unlock
+elif [ "$1" = "clone" -a -n "$2" -a -n "$3" ]; then
+    _clone "$2" "$3" 
+elif [ "$1" = "update" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _lock
+    _clone "$2" "$dest" omit
+    _install "$2" "$dest"
+    _unlock
+elif [ "$1" = "remove" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _lock
+    _remove "$2" "$dest"
+    _unlock
+elif [ "$1" = "touch" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _lock
+    _clone "$2" "$dest" omit
+    _install "$2" "$dest" force && \
+    _clean "$2" "$dest"
+    _unlock
+elif [ "$1" = "info" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _info "$2" "$dest"
+elif [ "$1" = "update" ]; then
+    _update
+elif [ "$1" = "list" ]; then
+    _list
+else
+    echo "Usage: $(basename $0) (install|remove|touch|info|clone) <user>/<repo>"
+    echo "       $(basename $0) (list|update)"
 fi
-rm -f "$LOCKFILE"
-exit $res

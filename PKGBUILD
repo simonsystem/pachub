@@ -11,10 +11,10 @@ depends=('yaourt' 'git')
 source=("$pkgname::git+https://github.com/simonsystem/pachub.git")
 md5sums=('SKIP')
 
-pkgver() {
-    cd "$srcdir/$pkgname"
-    git describe --always | sed -e 's/-/./g' -e 's/^v//' -e 's/_/./g'
-}
+#pkgver() {
+#    cd "$srcdir/$pkgname"
+#    git describe --always | sed -e 's/-/./g' -e 's/^v//' -e 's/_/./g'
+#}
 build() {
     cd "$srcdir/$pkgname"
     make
