@@ -77,9 +77,9 @@ _install() {
         echo \$pkgver > '$tdir/.pkgver'"
     pkgname="$(cat "$tdir/.pkgname")"
     pkgver="$(cat "$tdir/.pkgver")"
-    echo $pkgname > '$2/.pkgname'
-    echo $pkgver > '$2/.pkgver'
-    $PACMAN --noconfirm -U "$pkgname-$pkgver.pkg.tar.xz" || true
+    echo $pkgname > "$2/.pkgname"
+    echo $pkgver > "$2/.pkgver"
+    $PACMAN --noconfirm -U "$tdir/$pkgname-$pkgver.pkg.tar.xz" || true
 }
 
 _replace() {
