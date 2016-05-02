@@ -6,7 +6,7 @@ A yaourt wrapper to install PKDBUILDs from github.com.
 
 ## Installation
 
-    curl https://raw.githubusercontent.com/simonsystem/pachub/master/pachub.sh |
+    curl https://raw.githubusercontent.com/simonsystem/pachub/master/pachub.sh -q |
     ( echo set -- install github:simonsystem/pachub ; cat ) | sudo BUILDUSER=$USER sh
 
 ## Usage

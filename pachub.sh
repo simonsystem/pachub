@@ -61,7 +61,6 @@ _check() {
 }
 
 _install() {
-    test -d "$2" || _clone "$1" "$2"
     $GIT -C "$2" remote update
     test "$3" = force || _check "$1" || return 0
     $GIT -C "$2" pull --rebase
@@ -73,10 +72,10 @@ _install() {
         cp -r '$2' '$tdir' &&
         cd '$tdir' && $MAKEPKG -s --noconfirm &&
         source '$tdir/PKGBUILD' &&
-        echo \$pkgname > $tdir/.pkgname &&
-        echo \$pkgver > $tdir/.pkgver"
-    pkgname="$(cat "$dest/.pkgname")"
-    pkgver="$(cat "$dest/.pkgver")"
+        echo \$pkgname > '$2/.pkgname' &&
+        echo \$pkgver > '$2/.pkgver'"
+    pkgname="$(cat "$2/.pkgname")"
+    pkgver="$(cat "$2/.pkgver")"
     $PACMAN --noconfirm -U "$pkgname-$pkgver.pkg.tar.xz" || true
 }
 
