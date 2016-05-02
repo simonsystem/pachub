@@ -70,12 +70,15 @@ _install() {
         mkdir -p '$(dirname "$tdir")';
         rm -rf '$tdir';
         cp -r '$2' '$tdir' &&
-        cd '$tdir' && $MAKEPKG -s --noconfirm &&
+        cd '$tdir' &&
+        $MAKEPKG -s --noconfirm &&
         source '$tdir/PKGBUILD' &&
-        echo \$pkgname > '$2/.pkgname' &&
-        echo \$pkgver > '$2/.pkgver'"
+        echo \$pkgname > '$tdir/.pkgname' &&
+        echo \$pkgver > '$tdir/.pkgver'"
     pkgname="$(cat "$2/.pkgname")"
     pkgver="$(cat "$2/.pkgver")"
+    echo $pkgname > '$2/.pkgname'
+    echo $pkgver > '$2/.pkgver'
     $PACMAN --noconfirm -U "$pkgname-$pkgver.pkg.tar.xz" || true
 }
 
