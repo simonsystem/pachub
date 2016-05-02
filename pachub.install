@@ -1,0 +1,9 @@
+post_install() {
+  post_upgrade
+  passwd -l pachub &>/dev/null
+}
+
+post_upgrade() {
+  getent group pachub >/dev/null || groupadd -g 372 pachub
+  getent passwd pachub >/dev/null || useradd -c 'Pachub Build User' -u 372 -g pachub -b '/var/lib' -m -s /bin/false pachub
+}
