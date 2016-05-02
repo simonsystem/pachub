@@ -118,7 +118,6 @@ _info() {
 
 _list() {
     for dir in "$REPODIR/"*; do
-        echo ok
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
             basename "$dir"
         fi

@@ -1,5 +1,5 @@
 
-PREFIX=/usr
+PREFIX=/usr/local
 
 build:
 install:
