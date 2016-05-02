@@ -2,20 +2,22 @@
 
 set -e
 
+_die() {
+    echo "$1"
+    exit 1
+}
+
+test $(id -u) -eq 0 || _die "This script must be run as root."
+
 GIT=git
 MAKEPKG=makepkg
 PACMAN=pacman
 SUDO=sudo
-CLIBUILDUSER="$BUILDUSER"
-BUILDUSER=""
 test -n "$CONFFILE" || CONFFILE="/usr/local/etc/pachub.conf"
 test ! -f "$CONFFILE" || source "$CONFFILE" 2> /dev/null
 test -n "$LOCKFILE" || LOCKFILE="/var/local/pachub/lock"
 test -n "$REPODIR" || REPODIR="/var/local/pachub/repo"
-if [ -z "$BUILDUSER" ]; then
-    echo BUILDUSER="$CLIBUILDUSER" >> "$CONFFILE"
-    BUILDUSER="$CLIBUILDUSER"
-fi
+test -n "$BUILDUSER" || BUILDUSER=pachub
 test -n "$TMPBASE" || TMPBASE="/tmp"
 umask 0022
 
@@ -33,7 +35,7 @@ umask 0022
 
 _clone() {
     test "$3" != omit || test ! -d "$2" || return 0
-    test ! -d "$2" || die "Folder '$2' already exists."
+    test ! -d "$2" || _die "Folder '$2' already exists."
     rtype=$(echo "$1" | cut -d: -f1)
     rpath=$(echo "$1" | cut -d: -f2)
     if [ "$rtype" = "aur" ]; then
@@ -47,11 +49,6 @@ _clone() {
     rm -rf "$2"
     $GIT clone "$url" "$2"
     return $?
-}
-
-_die() {
-    echo "$1"
-    exit 1
 }
 
 _check() {
@@ -130,7 +127,7 @@ _list() {
 }
 
 _lock() {
-    test ! -f "$LOCKFILE" || die "Lockfile exists at $LOCKFILE."
+    test ! -f "$LOCKFILE" || _die "Lockfile exists at $LOCKFILE."
     mkdir -p "$(dirname "$LOCKFILE")" || true
     touch "$LOCKFILE"
     trap _unlock EXIT
