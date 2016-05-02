@@ -6,11 +6,16 @@ GIT=git
 MAKEPKG=makepkg
 PACMAN=pacman
 SUDO=sudo
+CLIBUILDUSER="$BUILDUSER"
+BUILDUSER=""
 test -n "$CONFFILE" || CONFFILE="/usr/local/etc/pachub.conf"
 test ! -f "$CONFFILE" || source "$CONFFILE" 2> /dev/null
 test -n "$LOCKFILE" || LOCKFILE="/var/local/pachub/lock"
 test -n "$REPODIR" || REPODIR="/var/local/pachub/repo"
-test -n "$BUILDUSER" || BUILDUSER="pachub"
+if [ -n "$BUILDUSER" ]; then
+    echo BUILDUSER="$CLIBUILDUSER" >> "$CONFFILE"
+    BUILDUSER="$CLIBUILDUSER"
+fi
 test -n "$TMPBASE" || TMPBASE="/tmp"
 umask 0022
 
