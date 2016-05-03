@@ -3,13 +3,22 @@
 A yaourt wrapper to install PKDBUILDs from github.com.
 
 - git *(>=2.0)*
+- makepkg
 
 ## Installation
 
-    curl https://raw.githubusercontent.com/simonsystem/pachub/master/pachub.sh -q 2> /dev/null|
-    ( echo set -- install github:simonsystem/pachub ; cat ) | sudo BUILDUSER=$USER sh
+    (echo set -- install github:simonsystem/pachub && wget -qO- https://git.io/vwSrY) | 
+    sudo BUILDUSER=$USER sh
 
 ## Usage
 
-    pachub (install|remove|touch|info) github:<user>/<repo>
+    pachub (install|touch) <uri> [pkgbuild <path>]
+    pachub (remove|info) <uri>
     pachub (list|update)
+
+    uri:
+      aur:<pkgname>
+      github:<user>/<repo>
+      file:///path/to/pkg
+      http://example.com/repo/path
+      user@git.example.com:~/repo.git

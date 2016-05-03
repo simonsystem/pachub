@@ -13,10 +13,10 @@ GIT=git
 MAKEPKG=makepkg
 PACMAN=pacman
 SUDO=sudo
-test -n "$CONFFILE" || CONFFILE="/usr/local/etc/pachub.conf"
+test -n "$CONFFILE" || CONFFILE="/etc/pachub.conf"
 test ! -f "$CONFFILE" || source "$CONFFILE" 2> /dev/null
-test -n "$LOCKFILE" || LOCKFILE="/var/local/pachub/lock"
-test -n "$REPODIR" || REPODIR="/var/local/pachub/repo"
+test -n "$LOCKFILE" || LOCKFILE="/var/pachub/lock"
+test -n "$REPODIR" || REPODIR="/var/pachub/repo"
 test -n "$BUILDUSER" || BUILDUSER=pachub
 test -n "$TMPBASE" || TMPBASE="/tmp"
 umask 0022
