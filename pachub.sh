@@ -58,9 +58,6 @@ _check() {
     BASE=$($GIT -C "$2" merge-base @ @{u})
 
     test $LOCAL != $REMOTE || return 1
-    test $LOCAL != $BASE || return 0
-    test $REMOTE != $BASE || echo "git changes found"
-    _die "git is diverged"
 }
 
 _install() {
@@ -128,7 +125,7 @@ _info() {
 _list() {
     for dir in "$REPODIR/"*; do
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
-            test ! -f "$2/.pkgname" || echo "$(basename "$dir") $(cat "$dir/.pkgname")"
+            test ! -f "$dir/.pkgname" || echo "$(basename "$dir") => $(cat "$dir/.pkgname")"
         fi
     done
 }
