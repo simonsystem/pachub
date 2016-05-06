@@ -64,9 +64,10 @@ _check() {
 }
 
 _install() {
+    $GIT -C "$2" remote remove merged || true
     $GIT -C "$2" remote update
     test "$3" = force || _check "$1" || return 0
-    $GIT -C "$2" pull
+    $GIT -C "$2" pull --no-edit -s recursive -X ours 
     tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
     
     $SUDO -u "$BUILDUSER" sh -c "
@@ -90,15 +91,18 @@ _merge() {
     $GIT -C "$2" remote add merged "$3"
     head=$(git symbolic-ref --short HEAD)
     $GIT -C "$2" fetch merged
-    $GIT -C "$2" merge "merged/$head"
+    $GIT -C "$2" merge --ff-only "merged/$head"
+    $GIT -C "$2" remote remove merged
 }
 
 _update() {
+    res=0
     for dir in "$REPODIR/"*; do
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
-            _install "$(basename "$dir")"
+            _install "$(basename "$dir")" "$dir" || res=1
         fi
     done
+    return $res
 }
 
 _remove() {
@@ -116,15 +120,15 @@ _clean() {
 }
 
 _info() {
-    test -f "$2/PKGBUILD" || _die "Not found."
-    ( cat "$2/PKGBUILD" && echo 'echo $pkgname' ) | sh | xargs -r $PACMAN -Qi
+    test -f "$2/.pkgname" || _die "Not found."
+    $PACMAN -Qi "$(cat "$2/.pkgname")"
     return $?
 }
 
 _list() {
     for dir in "$REPODIR/"*; do
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
-            basename "$dir"
+            test ! -f "$2/.pkgname" || echo "$(basename "$dir") $(cat "$dir/.pkgname")"
         fi
     done
 }
