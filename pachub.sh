@@ -48,9 +48,8 @@ _url() {
     esac
 }
 _clone() {
-    test "$3" != omit || test ! -d "$2" || return 0
-    test ! -d "$2" || _die "Folder '$2' already exists."
     url="$(_url "$1")"
+    test ! -d "$2" -o "$($GIT -C "$2" remote get-url origin)" = "$url" || _die "Folder '$2' already exists."
     mkdir -p "$(dirname "$2")" || true
     rm -rf "$2"
     $GIT clone "$url" "$2"
