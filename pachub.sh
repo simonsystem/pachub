@@ -7,8 +7,8 @@ PACMAN=pacman
 SUDO=sudo
 test -n "$CONFFILE" || CONFFILE="/etc/pachub.conf"
 test ! -f "$CONFFILE" || source "$CONFFILE" 2> /dev/null
-test -n "$LOCKFILE" || LOCKFILE="/var/pachub/lock"
-test -n "$REPODIR" || REPODIR="/var/pachub/repo"
+test -n "$LOCKFILE" || LOCKFILE="/var/lib/pachub/lock"
+test -n "$REPODIR" || REPODIR="/var/lib/pachub/repo"
 test -n "$BUILDUSER" || BUILDUSER=pachub
 test -n "$TMPBASE" || TMPBASE="/tmp"
 umask 0022
