@@ -33,19 +33,23 @@ umask 0022
 #   http://example.com/repo/path
 #   user@git.example.com:~/repo.git
 
+
+_url() {
+    case "$1" in
+        aur:*)
+        echo "https://aur.archlinux.org/$(echo "$1" | cut -d: -f2).git"
+        ;;
+        github:*)
+        echo "https://github.com/$(echo "$1" | cut -d: -f2).git"
+        ;;
+        *)
+        echo "$1"
+    esac
+}
 _clone() {
     test "$3" != omit || test ! -d "$2" || return 0
     test ! -d "$2" || _die "Folder '$2' already exists."
-    case "$1" in
-        aur:*)
-        url="https://aur.archlinux.org/$(echo "$1" | cut -d: -f2).git"
-        ;;
-        github:*)
-        url="https://github.com/$(echo "$1" | cut -d: -f2).git"
-        ;;
-        *)
-        url="$1"
-    esac
+    url="$(_url "$1")"
     mkdir -p "$(dirname "$2")" || true
     rm -rf "$2"
     $GIT clone "$url" "$2"
@@ -85,8 +89,9 @@ _install() {
 }
 
 _merge() {
+    url="$(_url "$3")"
     $GIT -C "$2" remote remove merged || true
-    $GIT -C "$2" remote add merged "$3"
+    $GIT -C "$2" remote add merged "$url"
     head=$(git symbolic-ref --short HEAD)
     $GIT -C "$2" fetch merged
     $GIT -C "$2" merge --ff-only "merged/$head"

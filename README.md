@@ -12,7 +12,7 @@ A yaourt wrapper to install PKDBUILDs from github.com.
 
 ## Usage
 
-    pachub (install|touch) <uri> [pkgbuild <path>]
+    pachub (install|touch) <uri> [merge <uri>]
     pachub (remove|info) <uri>
     pachub (list|update)
 
