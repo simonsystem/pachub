@@ -58,11 +58,12 @@ _check() {
     BASE=$($GIT -C "$2" merge-base @ @{u})
 
     test $LOCAL != $REMOTE || return 1
+    test $REMOTE != $BASE || return 1
 }
 
 _install() {
-    $GIT -C "$2" remote remove merged || true
-    $GIT -C "$2" fetch
+    $GIT -C "$2" remote remove merged 2> /dev/null || true
+    $GIT -C "$2" fetch  
     test "$3" = force || _check "$1" "$2" || return 0
     $GIT -C "$2" pull --no-edit -s recursive -X ours 
     tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
