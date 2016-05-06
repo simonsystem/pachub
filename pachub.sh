@@ -36,15 +36,16 @@ umask 0022
 _clone() {
     test "$3" != omit || test ! -d "$2" || return 0
     test ! -d "$2" || _die "Folder '$2' already exists."
-    rtype=$(echo "$1" | cut -d: -f1)
-    rpath=$(echo "$1" | cut -d: -f2)
-    if [ "$rtype" = "aur" ]; then
-        url="https://aur.archlinux.org/$rpath.git"
-    elif [ "$rtype" = "github" ]; then
-        url="https://github.com/$rpath.git"
-    else
-        url="$rtype:$rpath"
-    fi
+    case "$1" in
+        aur:*)
+        url="https://aur.archlinux.org/$(echo "$1" | cut -d: -f2).git"
+        ;;
+        github:*)
+        url="https://github.com/$(echo "$1" | cut -d: -f2).git"
+        ;;
+        *)
+        url="$1"
+    esac
     mkdir -p "$(dirname "$2")" || true
     rm -rf "$2"
     $GIT clone "$url" "$2"
@@ -65,7 +66,7 @@ _check() {
 _install() {
     $GIT -C "$2" remote update
     test "$3" = force || _check "$1" || return 0
-    $GIT -C "$2" pull --rebase
+    $GIT -C "$2" pull
     tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
     
     $SUDO -u "$BUILDUSER" sh -c "
@@ -81,13 +82,15 @@ _install() {
     pkgver="$(cat "$tdir/.pkgver")"
     echo $pkgname > "$2/.pkgname"
     echo $pkgver > "$2/.pkgver"
-    $PACMAN --noconfirm -U "$tdir/"*.pkg.tar.xz || true
+    $PACMAN --noconfirm -U "$tdir/"*.pkg.tar.xz
 }
 
-_replace() {
-    cp -r "$3"/* "$2"
-    $GIT -C "$2" add "*"
-    $GIT -C "$2" commit -m "$(date)" || true
+_merge() {
+    $GIT -C "$2" remote remove merged || true
+    $GIT -C "$2" remote add merged "$3"
+    head=$(git symbolic-ref --short HEAD)
+    $GIT -C "$2" fetch merged
+    $GIT -C "$2" merge "merged/$head"
 }
 
 _update() {
@@ -139,8 +142,8 @@ if [ "$1" = "install" -a -n "$2" ]; then
     dest="$REPODIR/$(echo "$2" | tr '/' '_')"
     _lock
     _clone "$2" "$dest" omit
-    if [ "$3" = "pkgbuild" -a -n "$4" ]; then
-        _replace "$2" "$dest" "$4"
+    if [ "$3" = "merge" -a -n "$4" ]; then
+        _merge "$2" "$dest" "$4"
     fi
     _install "$2" "$dest" force 
     _unlock
@@ -172,6 +175,14 @@ elif [ "$1" = "update" ]; then
 elif [ "$1" = "list" ]; then
     _list
 else
-    echo "Usage: $(basename $0) (install|remove|touch|info|clone) <user>/<repo>"
+    echo "Usage: $(basename $0) (install|touch) <uri> [merge <uri> ...]"
+    echo "       $(basename $0) (info|remove) <uri>"
     echo "       $(basename $0) (list|update)"
+    echo
+    echo "uri:"
+    echo "  aur:<pkgname>"
+    echo "  github:<user>/<repo>"
+    echo "  file:///path/to/pkg"
+    echo "  http://example.com/repo/path"
+    echo "  user@git.example.com:~/repo.git"
 fi
