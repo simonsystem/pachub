@@ -62,7 +62,7 @@ _check() {
 
 _install() {
     $GIT -C "$2" remote remove merged || true
-    $GIT -C "$2" remote update
+    $GIT -C "$2" fetch
     test "$3" = force || _check "$1" || return 0
     $GIT -C "$2" pull --no-edit -s recursive -X ours 
     tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
