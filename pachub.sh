@@ -1,13 +1,5 @@
 #!/bin/sh
-
 set -e
-
-_die() {
-    echo "$1"
-    exit 1
-}
-
-test $(id -u) -eq 0 || _die "This script must be run as root."
 
 GIT=git
 MAKEPKG=makepkg
@@ -21,18 +13,27 @@ test -n "$BUILDUSER" || BUILDUSER=pachub
 test -n "$TMPBASE" || TMPBASE="/tmp"
 umask 0022
 
-# pachub (install|touch) <uri> [pkgbuild <path>]
-# pachub list
-# pachub update
-# pachub info <uri>
-#
-# uri:
-#   aur:<pkgname>
-#   github:<user>/<repo>
-#   file:///path/to/pkg
-#   http://example.com/repo/path
-#   user@git.example.com:~/repo.git
+_usage() {
+    cat <<EOT
+Usage:
+    $1 (install|touch) <uri> [merge <uri>]
+    $1 (info|remove) <uri>
+    $1 (list|update)
 
+uri:
+    aur:<pkgname>
+    github:<user>/<repo>
+    file:///path/to/pkg
+    http://example.com/repo/path
+    user@git.example.com:~/repo.git
+    /path/to/pkg
+EOT
+}
+
+_die() {
+    echo "$1"
+    return 1
+}
 
 _url() {
     case "$1" in
@@ -60,7 +61,6 @@ _check() {
     LOCAL=$($GIT -C "$2" rev-parse @)
     REMOTE=$($GIT -C "$2" rev-parse @{u})
     BASE=$($GIT -C "$2" merge-base @ @{u})
-
     test $LOCAL != $REMOTE || return 1
     test $REMOTE != $BASE || return 1
 }
@@ -68,8 +68,10 @@ _check() {
 _install() {
     $GIT -C "$2" remote remove merged 2> /dev/null || true
     $GIT -C "$2" fetch  
-    test "$3" = force || _check "$1" "$2" || return 0
-    $GIT -C "$2" pull --no-edit -s recursive -X ours 
+    test "$3" = force || _check "$1" "$2" || _die "$1: up-to-date" || return 0
+    echo "$1: installing..."
+    $GIT -C "$2" pull --no-edit -s recursive -X ours
+
     tdir="$TMPBASE/pachub-$BUILDUSER/$(basename "$2")"
     
     $SUDO -u "$BUILDUSER" sh -c "
@@ -83,9 +85,9 @@ _install() {
         echo \$pkgver > '$tdir/.pkgver'"
     pkgname="$(cat "$tdir/.pkgname")"
     pkgver="$(cat "$tdir/.pkgver")"
-    echo $pkgname > "$2/.pkgname"
-    echo $pkgver > "$2/.pkgver"
     $PACMAN --noconfirm -U "$tdir/"*.pkg.tar.xz
+    echo "$pkgname" > "$2/.pkgname"
+    echo "$pkgver" > "$2/.pkgver"
 }
 
 _merge() {
@@ -133,7 +135,7 @@ _list() {
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
             echo -n "$(basename "$dir")"
             if [ -f "$dir/.pkgname" ]; then
-                echo -n "=> $(cat "$dir/.pkgname")"
+                echo -n " => $(cat "$dir/.pkgname")"
             fi
             echo
         fi
@@ -141,23 +143,34 @@ _list() {
 }
 
 _lock() {
+    test $(id -u) -eq 0 || _die "Must be root."
     test ! -f "$LOCKFILE" || _die "Lockfile exists at $LOCKFILE."
     mkdir -p "$(dirname "$LOCKFILE")" || true
     touch "$LOCKFILE"
     trap _unlock EXIT
 }
+
 _unlock() {
+    for dir in "$REPODIR/"*; do
+        if [ "$dir" != "$REPODIR/*" -a -d "$dir" -a ! -f "$dir/.pkgname" ]; then
+            rm -Rf "$dir"
+        fi
+    done
     rm -f "$LOCKFILE"
 }
 
 _log() {
     test -d "$2" || _die "Not found."
     $GIT -C "$2" log --graph --abbrev-commit --decorate --oneline --all
+}
 
+_dir() {
+    echo -n "$REPODIR/"
+    echo "$1" | tr '/' '_'
 }
 
 if [ "$1" = "install" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _lock
     _clone "$2" "$dest" omit
     if [ "$3" = "merge" -a -n "$4" ]; then
@@ -168,42 +181,35 @@ if [ "$1" = "install" -a -n "$2" ]; then
 elif [ "$1" = "clone" -a -n "$2" -a -n "$3" ]; then
     _clone "$2" "$3" 
 elif [ "$1" = "update" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _lock
     _clone "$2" "$dest" omit
     _install "$2" "$dest"
     _unlock
 elif [ "$1" = "remove" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _lock
     _remove "$2" "$dest"
     _unlock
 elif [ "$1" = "touch" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _lock
     _clone "$2" "$dest" omit
-    _install "$2" "$dest" force && \
+    _install "$2" "$dest" force
     _clean "$2" "$dest"
     _unlock
 elif [ "$1" = "log" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _log "$2" "$dest"
 elif [ "$1" = "info" -a -n "$2" ]; then
-    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    dest="$(_dir "$2")"
     _info "$2" "$dest"
 elif [ "$1" = "update" ]; then
+    _lock
     _update
+    _unlock
 elif [ "$1" = "list" ]; then
     _list
 else
-    echo "Usage: $(basename $0) (install|touch) <uri> [merge <uri> ...]"
-    echo "       $(basename $0) (info|remove) <uri>"
-    echo "       $(basename $0) (list|update)"
-    echo
-    echo "uri:"
-    echo "  aur:<pkgname>"
-    echo "  github:<user>/<repo>"
-    echo "  file:///path/to/pkg"
-    echo "  http://example.com/repo/path"
-    echo "  user@git.example.com:~/repo.git"
+    _usage "$(basename $0)"
 fi
