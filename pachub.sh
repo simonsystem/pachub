@@ -131,7 +131,11 @@ _info() {
 _list() {
     for dir in "$REPODIR/"*; do
         if [ "$dir" != "$REPODIR/*" -a -d "$dir" ]; then
-            test ! -f "$dir/.pkgname" || echo "$(basename "$dir") => $(cat "$dir/.pkgname")"
+            echo -n "$(basename "$dir")"
+            if [ -f "$dir/.pkgname" ]; then
+                echo -n "=> $(cat "$dir/.pkgname")"
+            fi
+            echo
         fi
     done
 }
@@ -142,9 +146,16 @@ _lock() {
     touch "$LOCKFILE"
     trap _unlock EXIT
 }
-_unlock(){
+_unlock() {
     rm -f "$LOCKFILE"
 }
+
+_log() {
+    test -d "$2" || _die "Not found."
+    $GIT -C "$2" log --graph --abbrev-commit --decorate --oneline --all
+
+}
+
 if [ "$1" = "install" -a -n "$2" ]; then
     dest="$REPODIR/$(echo "$2" | tr '/' '_')"
     _lock
@@ -174,6 +185,9 @@ elif [ "$1" = "touch" -a -n "$2" ]; then
     _install "$2" "$dest" force && \
     _clean "$2" "$dest"
     _unlock
+elif [ "$1" = "log" -a -n "$2" ]; then
+    dest="$REPODIR/$(echo "$2" | tr '/' '_')"
+    _log "$2" "$dest"
 elif [ "$1" = "info" -a -n "$2" ]; then
     dest="$REPODIR/$(echo "$2" | tr '/' '_')"
     _info "$2" "$dest"
